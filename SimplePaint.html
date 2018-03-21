@@ -1,0 +1,224 @@
+ <html>
+    <title>Simple Paint</title>
+    <script type="text/javascript">
+    var canvas, ctx
+    var current = 0
+    var prev = 0
+    var drag = false
+    var currentTriangle = false
+    var states = []
+    var start
+
+    var triangles = {}
+    var prevState;
+
+    var x = "black",
+        y ;
+    
+    function init() {
+        canvas = document.getElementById('can');
+        ctx = canvas.getContext("2d");
+        w = canvas.width;
+        h = canvas.height;
+
+        canvas.addEventListener('dblclick',function(e) {
+            e.preventDefault()
+            var pos = findxy(e)
+            var color = ctx.getImageData(pos.x,pos.y,1,1).data;
+            var index = JSON.stringify({r:color[0],g:color[1],b:color[2]})
+            if(triangles[index])
+            {
+                prevState = JSON.stringify(triangles);
+                saveState();
+                delete triangles[index]
+                
+            }
+
+        });
+    
+        canvas.addEventListener("mousemove", function (e) {
+            current = findxy(e)
+            if(drag)
+            {
+                //finding the new position for dragged triangle
+                var dx = current.x-prev.x;
+                var dy = current.y - prev.y;
+                var pts  = triangles[drag].triangle;
+
+                pts[0].x += dx;
+                pts[0].y += dy;
+                pts[1].x += dx;
+                pts[1].y += dy;
+                pts[2].x += dx;
+                pts[2].y += dy;
+                prev = current;
+
+            }else if(prev)
+            {
+                //displaying the outline while drawing triangle
+                if (current.x===prev.x || current.y===prev.y) {
+                    return;
+                }
+                currentTriangle = [
+                    {x:prev.x,y: prev.y},
+                    {x:current.x,y:current.y},
+                    {x:prev.x-(current.x-prev.x),y:current.y}
+
+                ]
+            }
+        }, false);
+
+        canvas.addEventListener("mousedown", function (e) {
+            if(e.button !== 0)
+                return;
+            e.preventDefault();
+            prevState = JSON.stringify(triangles);
+            prev = findxy(e)
+            start = prev;
+            var color = ctx.getImageData(prev.x,prev.y,1,1).data;
+            var index = JSON.stringify({r:color[0],g:color[1],b:color[2]})
+            if(triangles[index])
+            {
+                drag = index;
+            }
+        }, false);
+
+
+        canvas.addEventListener("mouseup", function (e) {
+            if(e.button !== 0 && !drag && currentTriangle)
+                return;
+            
+            if(!drag){
+                current = findxy(e)
+                draw();
+            }
+            if(current.x !== start.x && current.y !== start.y){
+                saveState();
+            }
+            drag = false;
+            currentTriangle = false;
+            prev = false;
+
+            prevState = false;
+            
+        }, false);
+
+        canvas.addEventListener("mouseout", function (e) {
+            if(drag)
+                saveState();
+            drag = false;
+            currentTriangle = false;
+            prev = false;
+        }, false);
+
+        render();
+
+    }
+
+    function render() {
+        ctx.clearRect(0, 0, w, h);  
+        var r = true;
+        for(triangle in triangles)
+        {
+
+            points = triangles[triangle].triangle;
+            ctx.beginPath();
+            ctx.moveTo(points[0].x, points[0].y);
+            ctx.lineTo(points[1].x, points[1].y);
+            ctx.lineTo(points[2].x, points[2].y);
+            ctx.closePath();
+            ctx.strokeStyle = x;
+            ctx.lineWidth = 1;
+            ctx.stroke();
+            ctx.fillStyle = "rgb("+triangles[triangle].color.r+","+triangles[triangle].color.g+","+triangles[triangle].color.b+")";
+            ctx.fill(); 
+        }
+        if(currentTriangle)
+        {
+                ctx.beginPath();
+                ctx.moveTo(currentTriangle[0].x, currentTriangle[0].y);
+                ctx.lineTo(currentTriangle[1].x, currentTriangle[1].y);
+                ctx.lineTo(currentTriangle[2].x, currentTriangle[2].y);
+                ctx.closePath();
+                ctx.strokeStyle = x;
+                ctx.lineWidth = 1;
+                ctx.stroke();
+        }
+        requestAnimationFrame(render)
+    }
+    
+    function draw() {
+        if (current.x===prev.x || current.y===prev.y) {
+            prevState = false;
+            return;
+        }
+        var triangle = [
+            {x:prev.x,y: prev.y},
+            {x:current.x,y:current.y},
+            {x:prev.x-(current.x-prev.x),y:current.y}
+
+        ]
+        var color = {
+            r:Math.floor(Math.random() * 256),
+            g:Math.floor(Math.random() * 256),
+            b:Math.floor(Math.random() * 256)
+        }
+        triangles[JSON.stringify(color)] = {triangle,color};
+    }
+
+    var distance = function () {
+        return Math.sqrt(Math.pow(current.x - prev.x,2) + Math.pow(current.y - prev.y,2))
+    }
+    //finding the points x and y
+    function findxy(e) {
+            var x = e.clientX - canvas.offsetLeft;
+            var y = e.clientY - canvas.offsetTop;
+            return {x,y}
+    }
+
+
+    function erase() {
+        prevState = JSON.stringify(triangles);
+        saveState();
+            ctx.clearRect(0, 0, w, h);  
+            triangles = {}
+    }
+
+    //save state for undo 
+    function saveState()
+    {
+        document.getElementById('undoButton').disabled = false
+        
+        states.push(prevState);
+        prevState = false;
+        if(states.length > 6)
+            states.shift();
+
+    }
+
+    function undo() {
+
+        if(states.length > 0){
+
+            triangles = JSON.parse(states.pop())
+        }
+        if (states.length === 0) {
+            document.getElementById('undoButton').disabled = true;
+        }
+
+            
+    }
+
+    </script>
+    <body onload="init()">
+        <div align="center">
+            <p align="center" style="font-weight: bold;">Simple Paint App</p>
+            <canvas id="can" width="900" height="500" style="border:2px solid;">
+                
+            </canvas>
+            <br>
+            <button type="button" style="background-color: #e7e7e7; color: black;font-size: 21px;" onclick="erase()" >Clear</button>
+            <button type="button" id='undoButton' style="background-color: #e7e7e7; color: black;font-size: 21px;left: 45px;" onclick="undo()" disabled>Undo</button>
+        </div>
+    </body>
+    </html>
